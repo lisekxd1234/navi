@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edycja dokumentu' if is_edit else 'Nowa faktura / paragon' }}{% endblock %}
+
+{% block content %}
+{% set form_document_type = request.form.get('document_type') or (invoice.document_type if invoice else 'paragon') %}
+{% set form_issue_date = request.form.get('issue_date') or (invoice.issue_date.strftime('%Y-%m-%d') if invoice else default_date) %}
+{% set form_sale_date = request.form.get('sale_date') or (invoice.sale_date.strftime('%Y-%m-%d') if invoice and invoice.sale_date else form_issue_date) %}
+{% set form_number = request.form.get('number') or (invoice.number if invoice else default_number) %}
+{% set form_client_name = request.form.get('client_name') or (invoice.client_name if invoice else '') %}
+{% set form_client_tax_id = request.form.get('client_tax_id') or (invoice.client_tax_id if invoice and invoice.client_tax_id else '') %}
+{% set form_client_address = request.form.get('client_address') or (invoice.client_address if invoice and invoice.client_address else '') %}
+{% set form_issue_place = request.form.get('issue_place') or (invoice.issue_place if invoice and invoice.issue_place else default_issue_place) %}
+{% set form_tax_rate = request.form.get('tax_rate') or ('{:.2f}'.format(invoice.tax_rate) if invoice and invoice.tax_rate is not none else '0') %}
+{% set form_payment_method = request.form.get('payment_method') or (invoice.payment_method if invoice and invoice.payment_method else 'BLIK') %}
+{% set form_amount_paid = request.form.get('amount_paid') or ('{:.2f}'.format(invoice.amount_paid) if invoice and invoice.amount_paid is not none else '') %}
+{% set form_notes = request.form.get('notes') or (invoice.notes if invoice and invoice.notes else '') %}
+{% set form_internal_notes = request.form.get('internal_notes') or (invoice.internal_notes if invoice and invoice.internal_notes else '') %}
+
+<h2>{{ 'Edytuj dokument sprzedażowy' if is_edit else 'Nowy dokument sprzedażowy' }}</h2>
+<form method="post" novalidate>
+    <div class="flex-row">
+        <div class="flex-item">
+            <label for="document_type">Rodzaj dokumentu</label>
+            <select id="document_type" name="document_type" required>
+                <option value="faktura" {% if form_document_type == 'faktura' %}selected{% endif %}>Faktura</option>
+                <option value="paragon" {% if form_document_type == 'paragon' %}selected{% endif %}>Paragon</option>
+            </select>
+        </div>
+        <div class="flex-item">
+            <label for="issue_date">Data wystawienia</label>
+            <input type="date" id="issue_date" name="issue_date" value="{{ form_issue_date }}" required>
+        </div>
+        <div class="flex-item">
+            <label for="number">Numer dokumentu</label>
+            <input type="text" id="number" name="number" value="{{ form_number }}" placeholder="np. 3/11/2025">
+        </div>
+    </div>
+
+    <label for="client_name">Kontrahent</label>
+    <input type="text" id="client_name" name="client_name" placeholder="Nazwa kontrahenta" value="{{ form_client_name }}">
+
+    <label for="client_tax_id">NIP</label>
+    <input type="text" id="client_tax_id" name="client_tax_id" placeholder="Opcjonalnie" value="{{ form_client_tax_id }}">
+
+    <label for="client_address">Adres kontrahenta</label>
+    <textarea id="client_address" name="client_address" rows="2" placeholder="Ulica, kod, miasto">{{ form_client_address }}</textarea>
+
+    <div class="flex-row">
+        <div class="flex-item">
+            <label for="issue_place">Miejsce wystawienia</label>
+            <input type="text" id="issue_place" name="issue_place" placeholder="np. Stare Kurowo" value="{{ form_issue_place }}">
+        </div>
+        <div class="flex-item">
+            <label for="sale_date">Data sprzedaży</label>
+            <input type="date" id="sale_date" name="sale_date" value="{{ form_sale_date }}">
+        </div>
+    </div>
+
+    <h3>Pozycje dokumentu</h3>
+    <p class="form-hint">Domyślnie widoczna jest jedna pozycja. Dodaj kolejną tylko wtedy, gdy naprawdę jest potrzebna.</p>
+
+    <div class="items-table-wrapper">
+        <table class="items-table" id="itemsTable">
+            <thead>
+            <tr>
+                <th>Opis</th>
+                <th>Ilość</th>
+                <th>Jm</th>
+                <th>Cena brutto</th>
+                <th>Cena netto</th>
+                <th>Wartość brutto</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+        </table>
+    </div>
+
+    <template id="itemRowTemplate">
+        <tr>
+            <td>
+                <div class="item-description-cell">
+                    <input type="text" name="item_description[]" placeholder="Opis usługi">
+                    <select class="item-template-select">
+                        <option value="">Wpisz ręcznie lub wybierz szablon</option>
+                        {% for template in service_templates %}
+                            <option value="{{ template.id }}">{{ template.name }} ({{ template.gross_price|pl_currency }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </td>
+            <td><input type="number" name="item_quantity[]" min="0.01" step="0.01" value="1.00" required></td>
+            <td class="item-unit">us&#322;.</td>
+            <td><input type="number" name="item_gross_price[]" min="0" step="0.01" value=""></td>
+            <td class="item-net">0,00 zł</td>
+            <td class="item-total">0,00 zł</td>
+            <td><button type="button" class="btn btn-secondary remove-btn">Usu&#324;</button></td>
+        </tr>
+    </template>
+
+    <div class="items-toolbar">
+        <button type="button" class="btn btn-secondary" id="addItemBtn">Dodaj pozycję</button>
+        <div class="items-toolbar__meta">
+            <span>Możesz skorzystać z zapisanych szablonów usług.</span>
+            <a class="btn-link" href="{{ url_for('service_templates_view') }}">Zarządzaj szablonami</a>
+        </div>
+    </div>
+
+    <div class="flex-row" style="margin-top: 1.5rem;">
+        <div class="flex-item">
+            <label for="tax_rate">Stawka VAT (%)</label>
+            <input type="number" id="tax_rate" name="tax_rate" value="{{ form_tax_rate }}" min="0" step="0.01">
+        </div>
+        <div class="flex-item">
+            <label>Razem netto</label>
+            <input type="text" id="net_total" readonly>
+        </div>
+        <div class="flex-item">
+            <label>Razem brutto</label>
+            <input type="text" id="gross_total" readonly>
+        </div>
+    </div>
+
+    <div class="flex-row">
+        <div class="flex-item">
+            <label for="payment_method">Sposób płatności</label>
+            <select id="payment_method" name="payment_method">
+                <option value="Przelew" {% if form_payment_method == 'Przelew' %}selected{% endif %}>Przelew</option>
+                <option value="BLIK" {% if form_payment_method == 'BLIK' %}selected{% endif %}>BLIK</option>
+                <option value="Gotówka" {% if form_payment_method == 'Gotówka' %}selected{% endif %}>Gotówka</option>
+                <option value="PayPal" {% if form_payment_method == 'PayPal' %}selected{% endif %}>PayPal</option>
+            </select>
+        </div>
+        <div class="flex-item">
+            <label for="amount_paid">Kwota zapłacona</label>
+            <input type="number" id="amount_paid" name="amount_paid" min="0" step="0.01" value="{{ form_amount_paid }}">
+        </div>
+    </div>
+
+    <label for="notes">Uwagi (na wydruku)</label>
+    <textarea id="notes" name="notes" rows="3" placeholder="Np. informacje o płatności, termin zapłaty">{{ form_notes }}</textarea>
+
+    <label for="internal_notes">Uwagi wewnętrzne (nie pojawią się na wydruku)</label>
+    <textarea id="internal_notes" name="internal_notes" rows="3" placeholder="Informacje tylko dla Ciebie">{{ form_internal_notes }}</textarea>
+
+    <button type="submit" class="btn btn-primary">{{ 'Zapisz zmiany' if is_edit else 'Zapisz dokument' }}</button>
+    <a href="{{ url_for('invoices') }}" class="btn btn-secondary" style="margin-left: 0.5rem;">Anuluj</a>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const itemsBody = document.getElementById('itemsBody');
+    const itemRowTemplate = document.getElementById('itemRowTemplate');
+    const addItemBtn = document.getElementById('addItemBtn');
+    const taxField = document.getElementById('tax_rate');
+    const netTotalField = document.getElementById('net_total');
+    const grossTotalField = document.getElementById('gross_total');
+    const documentTypeField = document.getElementById('document_type');
+    const issueDateField = document.getElementById('issue_date');
+    const numberField = document.getElementById('number');
+    const amountPaidField = document.getElementById('amount_paid');
+    let amountPaidTouched = amountPaidField ? amountPaidField.value.trim() !== '' : false;
+    if (amountPaidField) {
+        amountPaidField.addEventListener('input', () => {
+            amountPaidTouched = true;
+        });
+    }
+
+    function toNumber(value, fallback = 0) {
+        const normalized = String(value ?? '').replace(',', '.').trim();
+        if (normalized === '') {
+            return fallback;
+        }
+        const parsed = parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    const defaultNumber = "{{ default_number }}";
+    const autoNumberEnabled = {{ 'true' if auto_number_enabled else 'false' }};
+    let numberTouched = autoNumberEnabled ? Boolean(numberField.value && numberField.value !== defaultNumber) : true;
+
+    const serviceTemplateOptions = {{ service_template_options|tojson }};
+    const templatesMap = serviceTemplateOptions.reduce((acc, tpl) => {
+        acc[String(tpl.id)] = {
+            description: tpl.description,
+            gross_price: toNumber(tpl.gross_price, 0)
+        };
+        return acc;
+    }, {});
+
+    const prefillItems = {{ prefill_items|tojson }};
+
+    function createRow(prefill = {}, skipRecalc = false) {
+        if (!itemRowTemplate) {
+            return;
+        }
+        const fragment = itemRowTemplate.content.cloneNode(true);
+        const row = fragment.querySelector('tr');
+        const descriptionInput = row.querySelector('input[name="item_description[]"]');
+        const quantityInput = row.querySelector('input[name="item_quantity[]"]');
+        const grossInput = row.querySelector('input[name="item_gross_price[]"]');
+        const templateSelect = row.querySelector('.item-template-select');
+
+        if (descriptionInput) {
+            descriptionInput.value = prefill.description || '';
+        }
+        if (quantityInput) {
+            const qty = toNumber(prefill.quantity, NaN);
+            quantityInput.value = Number.isFinite(qty) && qty > 0 ? qty.toFixed(2) : '1.00';
+        }
+        if (grossInput) {
+            const gross = toNumber(prefill.gross_price, NaN);
+            grossInput.value = Number.isFinite(gross) && gross >= 0 ? gross.toFixed(2) : '';
+        }
+
+        itemsBody.appendChild(row);
+        attachEvents(row, templateSelect, descriptionInput, quantityInput, grossInput);
+
+        if (!skipRecalc) {
+            recalculate();
+        }
+    }
+
+    function attachEvents(row, templateSelect, descriptionInput, quantityInput, grossInput) {
+        row.querySelectorAll('input[type="number"], input[type="text"]').forEach(input => {
+            input.addEventListener('input', recalculate);
+        });
+        const removeBtn = row.querySelector('.remove-btn');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => {
+                row.remove();
+                ensureMinimumRows();
+                recalculate();
+            });
+        }
+        if (templateSelect) {
+            templateSelect.addEventListener('change', () => {
+                const selected = templateSelect.value;
+                if (!selected || !templatesMap[selected]) {
+                    return;
+                }
+                const template = templatesMap[selected];
+                if (descriptionInput) {
+                    descriptionInput.value = template.description || '';
+                }
+                if (grossInput) {
+                    grossInput.value = Number(template.gross_price || 0).toFixed(2);
+                }
+                if (quantityInput && (!quantityInput.value || Number(quantityInput.value) <= 0)) {
+                    quantityInput.value = '1.00';
+                }
+                recalculate();
+            });
+        }
+    }
+
+    function ensureMinimumRows() {
+        if (!itemsBody.querySelector('tr')) {
+            createRow({}, true);
+        }
+    }
+
+    function recalculate() {
+        const rows = itemsBody.querySelectorAll('tr');
+        let netTotal = 0;
+        let grossTotal = 0;
+        const taxRate = toNumber(taxField.value, 0);
+        const taxMultiplier = 1 + (taxRate / 100);
+
+        rows.forEach(row => {
+            const qty = toNumber(row.querySelector('input[name="item_quantity[]"]').value, 0);
+            const grossPrice = toNumber(row.querySelector('input[name="item_gross_price[]"]').value, 0);
+            const netPrice = taxMultiplier ? grossPrice / taxMultiplier : grossPrice;
+            const lineGross = qty * grossPrice;
+            const lineNet = qty * netPrice;
+
+            grossTotal += lineGross;
+            netTotal += lineNet;
+
+            row.querySelector('.item-net').textContent = formatCurrency(lineNet);
+            row.querySelector('.item-total').textContent = formatCurrency(lineGross);
+        });
+
+        if (amountPaidField && !amountPaidTouched) {
+            amountPaidField.value = grossTotal.toFixed(2);
+        }
+
+        netTotalField.value = formatCurrency(netTotal);
+        grossTotalField.value = formatCurrency(grossTotal);
+    }
+
+    function formatCurrency(value) {
+        return value.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' zł';
+    }
+
+    taxField.addEventListener('input', recalculate);
+    if (addItemBtn) {
+        addItemBtn.addEventListener('click', () => createRow());
+    }
+
+    numberField.addEventListener('input', () => (numberTouched = true));
+
+    async function refreshDocumentNumber() {
+        if (!autoNumberEnabled || numberTouched) {
+            return;
+        }
+        const params = new URLSearchParams({
+            document_type: documentTypeField.value,
+            issue_date: issueDateField.value
+        });
+        try {
+            const response = await fetch(`/api/next-number?${params.toString()}`);
+            if (response.ok) {
+                const data = await response.json();
+                numberField.value = data.number;
+            }
+        } catch (error) {
+            console.warn('Nie udalo sie pobrac kolejnego numeru dokumentu.', error);
+        }
+    }
+
+    documentTypeField.addEventListener('change', () => {
+        if (!autoNumberEnabled) return;
+        numberTouched = false;
+        refreshDocumentNumber();
+    });
+
+    issueDateField.addEventListener('change', () => {
+        if (!autoNumberEnabled) return;
+        numberTouched = false;
+        refreshDocumentNumber();
+    });
+
+    if (prefillItems.length) {
+        prefillItems.forEach(item => createRow(item, true));
+    }
+    ensureMinimumRows();
+    recalculate();
+</script>
+{% endblock %}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Panel finansowy{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+<header class="top-bar">
+    <a href="{{ url_for('dashboard') }}" class="brand">
+        <span class="brand-title">NaviUnlock Pro</span>
+        <span class="brand-subtitle">Panel finansowy</span>
+    </a>
+    <nav class="main-nav">
+        <a href="{{ url_for('dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('invoices') }}">Sprzedaż</a>
+        <a href="{{ url_for('ndg_documents') }}">Koszty NDG</a>
+        <a href="{{ url_for('service_templates_view') }}">Szablony usług</a>
+        <a href="{{ url_for('import_data') }}">Import CSV</a>
+    </nav>
+</header>
+
+<main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <section class="messages">
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </section>
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+    <span>Limit NDG miesięcznie: {{ NDG_MONTHLY_LIMIT|pl_currency }}</span>
+</footer>
+
+{% block scripts %}{% endblock %}
+<script>
+    (function () {
+        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+        const isMobile = /android|iphone|ipad|ipod|windows phone/i.test(userAgent);
+        if (isMobile) {
+            document.documentElement.classList.add("is-mobile");
+        }
+    })();
+</script>
+</body>
+</html>

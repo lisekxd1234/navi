@@ -1,0 +1,13 @@
+[Unit]
+Description=NaviUnlock Finance Dashboard
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env bash /path/to/repo/scripts/run_server.sh
+WorkingDirectory=/path/to/repo
+Restart=on-failure
+Environment=FLASK_APP=app/app.py
+
+[Install]
+WantedBy=multi-user.target

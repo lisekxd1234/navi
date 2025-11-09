@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edycja dokumentu NDG' if is_edit else 'Nowy dokument NDG' }}{% endblock %}
+
+{% block content %}
+{% set form_date = request.form.get('document_date') or (document.document_date.strftime('%Y-%m-%d') if document else default_date) %}
+{% set form_number = request.form.get('number') or (document.number if document else '') %}
+{% set form_amount = request.form.get('amount') or ('{:.2f}'.format(document.amount) if document else '') %}
+{% set form_supplier = request.form.get('supplier_name') or (document.supplier_name if document else '') %}
+{% set form_description = request.form.get('description') or (document.description if document and document.description else '') %}
+{% set form_file_reference = request.form.get('file_reference') or (document.file_reference if document and document.file_reference else '') %}
+{% set form_internal_notes = request.form.get('internal_notes') or (document.internal_notes if document and document.internal_notes else '') %}
+
+<h2>{{ 'Edytuj dokument NDG' if is_edit else 'Dodaj dokument NDG' }}</h2>
+<form method="post" novalidate enctype="multipart/form-data">
+    <div class="flex-row">
+        <div class="flex-item">
+            <label for="document_date">Data dokumentu</label>
+            <input type="date" id="document_date" name="document_date" value="{{ form_date }}" required>
+        </div>
+        <div class="flex-item">
+            <label for="number">Numer</label>
+            <input type="text" id="number" name="number" placeholder="Numer dokumentu" value="{{ form_number }}" required>
+        </div>
+        <div class="flex-item">
+            <label for="amount">Kwota (brutto)</label>
+            <input type="number" id="amount" name="amount" min="0.01" step="0.01" value="{{ form_amount }}" required>
+        </div>
+    </div>
+
+    <label for="supplier_name">Dostawca</label>
+    <input type="text" id="supplier_name" name="supplier_name" placeholder="Nazwa dostawcy" value="{{ form_supplier }}" required>
+
+    <label for="description">Opis</label>
+    <textarea id="description" name="description" rows="3" placeholder="Czego dotyczy zakup?">{{ form_description }}</textarea>
+
+    <label for="file_reference">Plik / odnośnik</label>
+    <input type="text" id="file_reference" name="file_reference" placeholder="np. link do chmury" value="{{ form_file_reference }}">
+
+    <label for="attachments">Załącz pliki (PDF / obrazy)</label>
+    <input type="file" id="attachments" name="attachments" accept=".pdf,image/*" multiple>
+    {% if document and document.attachments %}
+        <div class="help-text" style="margin-top:0.5rem;">
+            <p>Istniejące pliki:</p>
+            <ul class="ndg-attachments-list">
+                {% for attachment in document.attachments %}
+                    <li>
+                        <a href="{{ url_for('serve_upload', filename=attachment.file_reference) }}" target="_blank">Plik {{ loop.index }}</a>
+                        <label style="margin-left:0.5rem;">
+                            <input type="checkbox" name="remove_attachment_ids" value="{{ attachment.id }}">
+                            Usuń
+                        </label>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <label for="internal_notes">Uwagi wewnętrzne (nie pojawią się na wydruku)</label>
+    <textarea id="internal_notes" name="internal_notes" rows="3" placeholder="Informacje tylko dla Ciebie">{{ form_internal_notes }}</textarea>
+
+    <button type="submit" class="btn btn-primary">{{ 'Zapisz zmiany' if is_edit else 'Zapisz dokument' }}</button>
+    <a href="{{ url_for('ndg_documents') }}" class="btn btn-secondary" style="margin-left: 0.5rem;">Anuluj</a>
+</form>
+{% endblock %}

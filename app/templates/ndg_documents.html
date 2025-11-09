@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Koszty NDG{% endblock %}
+
+{% block content %}
+<section class="actions">
+    <h2>Koszty NDG</h2>
+    <div>
+        <a class="btn btn-secondary" href="{{ url_for('export_ndg_pdf') }}">Eksport listy (PDF)</a>
+        <a class="btn btn-primary" href="{{ url_for('new_ndg_document') }}" style="margin-left: 0.5rem;">Dodaj dokument NDG</a>
+    </div>
+</section>
+
+<section class="summary-cards">
+    <article class="card">
+        <h2>Koszty NDG (bieżący miesiąc)</h2>
+        <p class="metric">{{ monthly_usage|pl_currency }}</p>
+        <span>Łączna wartość udokumentowanych kosztów.</span>
+    </article>
+    <article class="card">
+        <h2>Suma ostatnich 12 miesięcy</h2>
+        <p class="metric">{{ ndg_total_window|pl_currency }}</p>
+        <span>Zestawienie historyczne bez limitu.</span>
+    </article>
+</section>
+
+<section class="card ndg-chart-card">
+    <header class="ndg-chart-card__header">
+        <div>
+            <h3>Koszty NDG w ostatnich 6 miesiącach</h3>
+            <p>Podgląd wydatków miesiąc do miesiąca.</p>
+        </div>
+    </header>
+    <div class="ndg-chart-card__canvas">
+        <canvas id="ndgBarChart" data-labels='{{ chart_labels|tojson }}' data-series='{{ chart_series|tojson }}' aria-label="Słupkowy wykres kosztów NDG"></canvas>
+    </div>
+</section>
+
+{% if monthly_rows %}
+<section class="card" style="margin-top: 2rem;">
+    <h3>Koszty według miesiąca</h3>
+    <table class="history-table">
+        <thead>
+        <tr>
+            <th>Miesiąc</th>
+            <th>Kwota</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for row in monthly_rows %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td>{{ row.amount|pl_currency }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+{% if documents %}
+<div class="table-wrapper">
+    <table>
+        <thead>
+        <tr>
+            <th>Data</th>
+            <th>Numer</th>
+            <th>Dostawca</th>
+            <th>Opis</th>
+            <th>Kwota</th>
+            <th>Pliki</th>
+            <th>Uwagi wewnętrzne</th>
+            <th>Akcje</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for doc in documents %}
+            <tr>
+                <td>{{ doc.document_date.strftime('%Y-%m-%d') }}</td>
+                <td>{{ doc.number }}</td>
+                <td>{{ doc.supplier_name }}</td>
+                <td>{{ doc.description or '-' }}</td>
+                <td>{{ doc.amount|pl_currency }}</td>
+                <td>
+                    {% if doc.attachments %}
+                        <ul class="ndg-attachments-list">
+                            {% for attachment in doc.attachments %}
+                                <li>
+                                    <a class="btn-link" href="{{ url_for('serve_upload', filename=attachment.file_reference) }}" target="_blank">Plik {{ loop.index }}</a>
+                                    <form method="post" action="{{ url_for('delete_ndg_attachment', attachment_id=attachment.id) }}" class="inline-form" onsubmit="return confirm('Usunąć załącznik {{ loop.index }} z dokumentu {{ doc.number }}?');">
+                                        <button type="submit" class="btn-link text-danger">Usuń</button>
+                                    </form>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% elif doc.file_reference %}
+                        <a class="btn-link" href="{{ url_for('serve_upload', filename=doc.file_reference) }}" target="_blank">Pobierz</a>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{{ doc.internal_notes or '-' }}</td>
+                <td class="table-actions">
+                    <a class="btn-link" href="{{ url_for('edit_ndg_document', document_id=doc.id) }}">Edytuj</a>
+                    <form method="post" action="{{ url_for('delete_ndg_document', document_id=doc.id) }}" onsubmit="return confirm('Usunąć dokument NDG {{ doc.number }}?');">
+                        <button type="submit" class="btn-link">Usuń</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+    <p>Nie dodano jeszcze żadnych kosztów NDG.</p>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script>
+        window.addEventListener("DOMContentLoaded", () => {
+            const canvas = document.getElementById("ndgBarChart");
+            if (!canvas || typeof Chart === "undefined") {
+                return;
+            }
+            const labels = JSON.parse(canvas.dataset.labels || "[]");
+            const series = JSON.parse(canvas.dataset.series || "[]");
+            new Chart(canvas, {
+                type: "bar",
+                data: {
+                    labels,
+                    datasets: [{
+                        label: "Koszty NDG",
+                        data: series,
+                        backgroundColor: "rgba(63, 132, 214, 0.4)",
+                        borderColor: "#3f84d6",
+                        borderWidth: 2,
+                        borderRadius: 6,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback(value) {
+                                    return new Intl.NumberFormat("pl-PL", {
+                                        style: "currency",
+                                        currency: "PLN",
+                                        minimumFractionDigits: 0,
+                                    }).format(value);
+                                },
+                            },
+                        },
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label(context) {
+                                    return new Intl.NumberFormat("pl-PL", {
+                                        style: "currency",
+                                        currency: "PLN",
+                                    }).format(context.parsed.y ?? context.parsed ?? 0);
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        });
+    </script>
+{% endblock %}

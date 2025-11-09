@@ -1,0 +1,108 @@
+﻿{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<section class="sales-panel">
+    <header class="sales-panel__header">
+        <div>
+            <p class="sales-panel__eyebrow">Ewidencja sprzedaży</p>
+            <h2>{{ current_month_name }}</h2>
+        </div>
+        <a class="link-action" href="{{ url_for('invoices') }}">Przejdź do ewidencji sprzedaży</a>
+    </header>
+    <div class="sales-panel__grid">
+        <aside class="sales-summary">
+            <ul>
+                <li>
+                    <span>Limit miesięczny</span>
+                    <strong>{{ current_limit|pl_currency }}</strong>
+                </li>
+                <li>
+                    <span>Sprzedaż {{ current_month_name|lower }}</span>
+                    <strong>{{ current_sales|pl_currency }}</strong>
+                </li>
+                <li>
+                    <span>Pozostały limit</span>
+                    <strong>{{ ndg_remaining|pl_currency }}</strong>
+                </li>
+            </ul>
+        </aside>
+        <div class="sales-panel__chart">
+            <div class="donut-chart">
+                <canvas id="usageChart" aria-label="Wykorzystanie limitu NDG" role="img"></canvas>
+                <div class="donut-chart__value">
+                    <small>Limit miesięczny</small>
+                    <strong>{{ current_limit|pl_currency }}</strong>
+                </div>
+            </div>
+            <div class="donut-legend">
+                <span><span class="legend-dot legend-dot--accent"></span>Wykorzystany limit</span>
+                <span><span class="legend-dot legend-dot--primary"></span>Pozostały limit</span>
+            </div>
+        </div>
+        <div class="sales-panel__history">
+            <h3>Sprzedaż – ostatnie 6 miesięcy</h3>
+            <table class="history-table">
+                <thead>
+                <tr>
+                    <th>Miesiąc</th>
+                    <th>Limit miesięczny</th>
+                    <th>Sprzedaż</th>
+                    <th>Pozostały limit</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in history_rows %}
+                    <tr>
+                        <td>{{ row.label }}</td>
+                        <td>{{ row.limit|pl_currency }}</td>
+                        <td>{{ row.sales|pl_currency }}</td>
+                        <td>{{ row.remaining|pl_currency }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+<section class="company-health">
+    <button class="company-health__toggle" type="button" data-health-toggle aria-expanded="false">
+        <span>Kondycja firmy</span>
+        <span class="chevron" aria-hidden="true"></span>
+    </button>
+    <div class="company-health__body" id="companyHealthPanel" hidden>
+        <div class="company-health__metrics">
+            <article class="metric-card">
+                <p>Sprzedaż w {{ current_year }}</p>
+                <strong>{{ annual_sales_total|pl_currency }}</strong>
+                <small>Suma brutto wszystkich dokumentów</small>
+            </article>
+        </div>
+        <div class="company-health__chart">
+            <canvas id="annualSalesChart" aria-label="Sprzedaż miesięczna w {{ current_year }}"></canvas>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        window.dashboardBootstrap = {{ {
+            "labels": chart_labels,
+            "sales": sales_series,
+            "ndg": ndg_series,
+            "ndg_costs": ndg_cost_series,
+            "limit": limit_series,
+            "remaining": remaining_series,
+            "donut": donut_dataset,
+            "current_ndg_usage": donut_dataset[0],
+            "current_ndg_remaining": donut_dataset[1],
+            "annual": {
+                "labels": annual_chart_labels,
+                "series": annual_chart_series
+            }
+        } | tojson }};
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+{% endblock %}

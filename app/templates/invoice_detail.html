@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Dokument {{ invoice.number }}{% endblock %}
+
+{% block content %}
+<section class="document-toolbar">
+    <div class="document-meta">
+        <h2>{{ document_display_title }}</h2>
+        <ul class="meta-list">
+            <li><strong>Data wystawienia:</strong> {{ invoice.issue_date.strftime('%Y-%m-%d') }}</li>
+            <li><strong>Data sprzeda&#380;y:</strong> {{ (invoice.sale_date or invoice.issue_date).strftime('%Y-%m-%d') }}</li>
+            <li><strong>Miejsce wystawienia:</strong> {{ invoice.issue_place or DEFAULT_ISSUE_PLACE }}</li>
+            <li><strong>Spos&#243;b p&#322;atno&#347;ci:</strong> {{ invoice.payment_method or 'BLIK' }}</li>
+        </ul>
+    </div>
+    <div class="document-actions">
+        <a class="btn btn-secondary" href="{{ url_for('invoices') }}">Powr&#243;t</a>
+        <a class="btn btn-primary" href="{{ url_for('invoice_pdf', invoice_id=invoice.id) }}">Eksportuj PDF</a>
+        <button class="btn btn-primary" onclick="window.print()">Drukuj</button>
+    </div>
+</section>
+
+<section class="card printable invoice-card">
+    <div class="party-grid">
+        <div>
+            <h3>Sprzedawca</h3>
+            <p>
+                <strong>{{ SELLER.name }}</strong><br>
+                {% for line in SELLER.address_lines %}
+                    {{ line }}<br>
+                {% endfor %}
+            </p>
+        </div>
+        <div>
+            <h3>Nabywca</h3>
+            <p>
+                <strong>{{ invoice.client_name }}</strong><br>
+                {% if invoice.client_tax_id %}NIP: {{ invoice.client_tax_id }}<br>{% endif %}
+                {% if invoice.client_address %}
+                    {{ invoice.client_address | replace('\n', '<br>') | safe }}
+                {% else %}
+                    -
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <table class="items-table invoice-items">
+        <thead>
+        <tr>
+            <th>Lp.</th>
+            <th>Nazwa pe&#322;na</th>
+            <th>Ilo&#347;&#263;</th>
+            <th>Jm</th>
+            <th>Cena brutto</th>
+            <th>Warto&#347;&#263; brutto</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ item.description }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.unit }}</td>
+                <td>{{ item.unit_price_gross|pl_currency }}</td>
+                <td>{{ item.line_total_gross|pl_currency }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+        {% if invoice.tax_rate and invoice.tax_rate != 0 %}
+        <tr>
+            <th colspan="5">VAT {{ invoice.tax_rate }}%</th>
+            <th>{{ tax_amount|pl_currency }}</th>
+        </tr>
+        {% endif %}
+        <tr>
+            <th colspan="5">Razem (PLN)</th>
+            <th>{{ invoice.gross_amount|pl_currency }}</th>
+        </tr>
+        </tfoot>
+    </table>
+
+    <div class="invoice-summary">
+        <div class="invoice-summary__payment">
+            <h3>Do zap&#322;aty</h3>
+            <p class="summary-amount">{{ invoice.gross_amount|pl_currency }}</p>
+            <dl>
+                <dt>S&#322;ownie</dt>
+                <dd>{{ amount_in_words }}</dd>
+                <dt>Spos&#243;b p&#322;atno&#347;ci</dt>
+                <dd>{{ invoice.payment_method or 'BLIK' }}</dd>
+                <dt>Zap&#322;acono</dt>
+                <dd>{{ amount_paid|pl_currency }}</dd>
+                <dt>Pozosta&#322;o do zap&#322;aty</dt>
+                <dd>{{ amount_remaining|pl_currency }}</dd>
+            </dl>
+        </div>
+        <div class="invoice-summary__signature">
+            {% if invoice.notes %}
+            <div class="invoice-notes">
+                <h4>Uwagi</h4>
+                <p>{{ invoice.notes | replace('\n', '<br>') | safe }}</p>
+            </div>
+            {% endif %}
+            <div class="signature-row">
+                <span>Jakub Lis</span>
+                <span>Odebra&#322;(a)</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+{% if invoice.internal_notes %}
+<section class="card no-print" style="margin-top: 1.5rem;">
+    <h3>Uwagi wewn&#281;trzne</h3>
+    <p>{{ invoice.internal_notes | replace('\n', '<br>') | safe }}</p>
+</section>
+{% endif %}
+
+{% if show_saved_modal %}
+<div class="modal-overlay" id="exportModal">
+    <div class="modal-card">
+        <h3>Dokument zapisany</h3>
+        <p>Mo&#380;esz od razu pobra&#263; wersj&#281; PDF lub wr&#243;ci&#263; do listy dokument&#243;w.</p>
+        <div class="modal-actions">
+            <a class="btn btn-primary" href="{{ url_for('invoice_pdf', invoice_id=invoice.id) }}">Pobierz PDF</a>
+            <a class="btn btn-secondary" href="{{ url_for('invoices') }}">Przejd&#378; do listy</a>
+            <button type="button" class="btn-link" id="modalCloseBtn">Zostaw na p&#243;&#378;niej</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if show_saved_modal %}
+<script>
+    const exportModal = document.getElementById('exportModal');
+    const modalCloseBtn = document.getElementById('modalCloseBtn');
+    if (exportModal) {
+        exportModal.classList.add('is-visible');
+        exportModal.addEventListener('click', (event) => {
+            if (event.target === exportModal) {
+                exportModal.classList.remove('is-visible');
+            }
+        });
+        if (modalCloseBtn) {
+            modalCloseBtn.addEventListener('click', () => exportModal.classList.remove('is-visible'));
+        }
+    }
+</script>
+{% endif %}
+{% endblock %}

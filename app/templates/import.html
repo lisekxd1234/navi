@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Import CSV{% endblock %}
+
+{% block content %}
+<h2>Import danych z plików CSV</h2>
+<p>Wczytaj dane z poprzednich systemów. Aplikacja spróbuje dopasować kolumny według nazw zaprezentowanych na zrzutach ekranu.</p>
+
+<section class="card">
+    <h3>1. Import sprzedaży</h3>
+    <form method="post" action="{{ url_for('import_invoices_csv') }}" enctype="multipart/form-data">
+        <label for="sales_csv">Plik CSV (sprzedaż)</label>
+        <input type="file" id="sales_csv" name="csv_file" accept=".csv" required>
+        <p class="help-text">Obsługiwane kolumny: Data, Typ, Numer, Kontrahent, Odbiorca, Wartość, Wartość brutto, Waluta, Uwagi, Status, Usługa.</p>
+        <button type="submit" class="btn btn-primary">Importuj sprzedaż</button>
+    </form>
+</section>
+
+<section class="card" style="margin-top: 2rem;">
+    <h3>2. Import dokumentów NDG</h3>
+    <form method="post" action="{{ url_for('import_ndg_csv') }}" enctype="multipart/form-data">
+        <label for="ndg_csv">Plik CSV (koszty NDG)</label>
+        <input type="file" id="ndg_csv" name="csv_file" accept=".csv" required>
+
+        <label for="attachments_zip">Archiwum PDF (opcjonalnie)</label>
+        <input type="file" id="attachments_zip" name="attachments_zip" accept=".zip">
+        <p class="help-text">Struktura CSV identyczna jak przy imporcie sprzedaży (Data, Typ, Numer, Kontrahent, Odbiorca, Wartość, Wartość brutto, Waluta, Uwagi, Status, Usługa). Nazwy plików PDF w ZIP-ie powinny odpowiadać numerom dokumentów.</p>
+        <button type="submit" class="btn btn-primary">Importuj dokumenty NDG</button>
+    </form>
+</section>
+
+<section class="card" style="margin-top: 2rem;">
+    <h3>3. Usuwanie danych</h3>
+    <p class="help-text">Operacja jest nieodwracalna – upewnij się, że masz kopię zapasową.</p>
+    <form method="post" action="{{ url_for('purge_documents') }}" onsubmit="return confirm('Na pewno usunąć wybrane dane? Tej operacji nie można cofnąć.');">
+        <label for="purge_scope">Zakres usuwania</label>
+        <select id="purge_scope" name="scope" required>
+            <option value="all">Sprzedaż i koszty NDG</option>
+            <option value="sales">Tylko sprzedaż</option>
+            <option value="ndg">Tylko koszty NDG</option>
+        </select>
+        <button type="submit" class="btn btn-danger" style="margin-top: 1rem;">Usuń dane</button>
+    </form>
+</section>
+
+<section class="card" style="margin-top: 2rem;">
+    <h3>4. Kopia bazy danych</h3>
+    <p class="help-text">Pobierz aktualną bazę danych lub przywróć wcześniej zapisaną kopię. Operacja przywracania nadpisze wszystkie aktualne dane.</p>
+    <div style="display:flex; flex-wrap:wrap; gap:1rem;">
+        <a class="btn btn-secondary" href="{{ url_for('export_database') }}">Pobierz kopię bazy</a>
+        <form method="post" action="{{ url_for('import_database_backup') }}" enctype="multipart/form-data" onsubmit="return confirm('Przywrócić bazę danych z kopii? Obecne dane zostaną zastąpione.');">
+            <label for="backup_file">Plik kopii (.db)</label>
+            <input type="file" id="backup_file" name="backup_file" accept=".db,.sqlite,.sqlite3" required>
+            <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Przywróć bazę</button>
+        </form>
+    </div>
+</section>
+{% endblock %}

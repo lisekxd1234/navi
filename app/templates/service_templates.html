@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Szablony usług{% endblock %}
+
+{% block content %}
+<section class="card">
+    <h2>Dodaj nowy szablon usługi</h2>
+    <form method="post">
+        <div class="flex-row">
+            <div class="flex-item">
+                <label for="name">Nazwa</label>
+                <input type="text" id="name" name="name" placeholder="np. Odblokowanie YT" required>
+            </div>
+            <div class="flex-item">
+                <label for="gross_price">Cena brutto (PLN)</label>
+                <input type="number" id="gross_price" name="gross_price" min="0" step="0.01" required>
+            </div>
+        </div>
+        <label for="description">Opis (drukowany na pozycji)</label>
+        <textarea id="description" name="description" rows="2" required placeholder="Opis, który pojawi się w dokumencie"></textarea>
+        <button type="submit" class="btn btn-primary">Zapisz szablon</button>
+    </form>
+</section>
+
+<section class="card" style="margin-top: 2rem;">
+    <h2>Twoje szablony</h2>
+    {% if templates %}
+        <table>
+            <thead>
+            <tr>
+                <th>Nazwa</th>
+                <th>Opis</th>
+                <th>Cena brutto</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for template in templates %}
+                <tr>
+                    <td>{{ template.name }}</td>
+                    <td>{{ template.description }}</td>
+                    <td>{{ template.gross_price|pl_currency }}</td>
+                    <td>
+                        <form method="post" action="{{ url_for('delete_service_template', template_id=template.id) }}" onsubmit="return confirm('Usunąć ten szablon?');">
+                            <button type="submit" class="btn btn-secondary">Usuń</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>Nie utworzyłeś jeszcze żadnych szablonów usług.</p>
+    {% endif %}
+</section>
+{% endblock %}
